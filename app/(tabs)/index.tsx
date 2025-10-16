@@ -1,98 +1,128 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import CustomText from "@/components/CustomText";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React from "react";
+import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const { width } = Dimensions.get("window");
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const router = useRouter();
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  return (
+    <View style={styles.container}>
+      {/* Fondo semicircular */}
+      <View style={styles.backgroundCircle} />
+
+      {/* Contenido principal */}
+      <View style={styles.logoContainer}>
+        <Image
+          source={require("../../assets/images/logo.png")}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+        <CustomText style={styles.title}>Home Money</CustomText>
+      </View>
+
+      <CustomText style={styles.slogan}>
+        ¡Organiza tu hogar, organiza tu vida!
+      </CustomText>
+
+      {/* Botón "Conócenos" */}
+      <TouchableOpacity
+        style={styles.primaryButton}
+        onPress={() => router.push("./registro")}
+        accessible={true}
+        accessibilityLabel="Ir a registro"
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Ionicons name="arrow-forward" size={18} color={"#F2D8C2"} style={styles.icon} />
+        <Text style={styles.primaryButtonText}>Conócenos</Text>
+      </TouchableOpacity>
+
+      {/* Botón "¿Ya tienes una cuenta?" */}
+      <TouchableOpacity
+        style={styles.secondaryButton}
+        onPress={() => router.push("./login")}
+      >
+        <Ionicons name="person-circle-outline" size={20} color={"#1A1B41"} style={styles.icon} />
+        <Text style={styles.secondaryButtonText}>¿Ya tienes una cuenta?</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: "#f8f7f4",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+
+  backgroundCircle: {
+    ...StyleSheet.absoluteFillObject, // asegura que cubra toda la parte superior
+    top: -width * 1.10,               // desplaza un poco hacia arriba
+    height: width * 2,              // controla el tamaño del semicírculo
+    backgroundColor: "#1a1a40",
+    borderBottomLeftRadius: width * 0,
+    borderBottomRightRadius: width * 0.50,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+
+  logoContainer: {
+    alignItems: "center",
+    marginBottom: 130,
+  },
+  logo: {
+    width: width * 0.6,
+    height: width * 0.6,
+    alignSelf: "center",
+    marginBottom: -8,
+  },
+  title: {
+    fontSize: 35,
+    color: "#F2D8C2",
+    marginTop: -25,
+    fontFamily: "Montserrat-Bold",
+  },
+  slogan: {
+    fontSize: 30,
+    textAlign: "center",
+    color: "#2c2c54",
+    marginBottom: 40,
+    fontFamily: "SpaceGrotesk-Bold",
+  },
+  primaryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#1A1B41",
+    paddingVertical: 15,
+    paddingHorizontal: 10,
+    borderRadius: 15,
+    marginBottom: 15,
+  },
+  secondaryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#7CC6FE",
+    paddingVertical: 15,
+    paddingHorizontal: 10,
+    borderRadius: 15,
+  },
+  primaryButtonText: {
+    color: "#F2D8C2",
+    fontSize: 16,
+    fontFamily: "SpaceGrotesk",
+  },
+  secondaryButtonText: {
+    color: "#1a1a40",
+    fontSize: 16,
+    fontFamily: "SpaceGrotesk",
+  },
+  icon: {
+    marginRight: 8,
   },
 });
