@@ -1,5 +1,5 @@
 import CustomText from "@/components/CustomText";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons,AntDesign } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
 import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -25,19 +25,19 @@ export default function HomeScreen() {
       </View>
 
       <CustomText style={styles.slogan}>
-        ¡Organiza tu hogar, organiza tu vida!
+        ¡Comienza una vida mejor organizada!
       </CustomText>
 
       {/* Botón "Conócenos" */}
       <TouchableOpacity
         style={styles.primaryButton}
-        onPress={() => router.push("./home1")}
+        onPress={() => router.push("./login")}
         accessible={true}
-        accessibilityLabel="Ir a registro"
+        accessibilityLabel="Ir a iniciar sesión"
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
         <Ionicons name="arrow-forward" size={18} color={"#F2D8C2"} style={styles.icon} />
-        <Text style={styles.primaryButtonText}>Conócenos</Text>
+        <Text style={styles.primaryButtonText}>Inicia sesión</Text>
       </TouchableOpacity>
 
       {/* Botón "¿Ya tienes una cuenta?" */}
@@ -45,8 +45,8 @@ export default function HomeScreen() {
         style={styles.secondaryButton}
         onPress={() => router.push("./login")}
       >
-        <Ionicons name="person-circle-outline" size={20} color={"#1A1B41"} style={styles.icon} />
-        <Text style={styles.secondaryButtonText}>¿Ya tienes una cuenta?</Text>
+        <AntDesign name="plus" size={18} color="#1A1B41" />
+        <Text style={styles.secondaryButtonText}>Registrate</Text>
       </TouchableOpacity>
     </View>
   );
