@@ -140,7 +140,15 @@ export default function LoginScreen() {
             <Text style={styles.registerButtonText}> Registrarse</Text>
           </TouchableOpacity>
         </View>
+
+         {/* Enlace de recuperación */}
+        <TouchableOpacity
+        onPress={() => alert("Función no disponible aún")}
+        >
+        <Text style={styles.forgotPasswordText}>¿Olvidó su contraseña?</Text>
+        </TouchableOpacity>
       </View>
+      
     </ScrollView>
   );
 }
@@ -246,4 +254,14 @@ container: {
     fontFamily: "SpaceGrotesk-Bold",
     fontSize: 15,
   },
+  forgotPasswordText: {
+  alignSelf: "flex-end",
+  marginTop: 10,
+  marginBottom: 20,
+  color: "#1A1B41",
+  fontSize: 14,
+  fontFamily: "SpaceGrotesk-Bold",
+  textDecorationLine: "underline",
+},
+
 });
