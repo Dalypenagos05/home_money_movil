@@ -1,7 +1,9 @@
 import { AntDesign, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  Alert,
+  Animated,
   Dimensions,
   Image,
   ScrollView,
@@ -10,9 +12,9 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Animated,
 } from "react-native";
 import CustomText from "../../components/CustomText";
+import { getUserByEmail } from "../../database/db";
 
 const { width } = Dimensions.get("window");
 
@@ -22,6 +24,7 @@ type FloatingInputProps = {
   value: string;
   onChangeText: (text: string) => void;
   isPassword?: boolean;
+  keyboardType?: "default" | "email-address";
 };
 
 const FloatingInput: React.FC<FloatingInputProps> = ({
@@ -29,8 +32,8 @@ const FloatingInput: React.FC<FloatingInputProps> = ({
   value,
   onChangeText,
   isPassword = false,
-}) => 
-  {
+  keyboardType = "default",
+}) => {
   const [isFocused, setIsFocused] = useState(false);
   const animatedLabel = useRef(new Animated.Value(value ? 1 : 0)).current;
 
@@ -57,7 +60,6 @@ const FloatingInput: React.FC<FloatingInputProps> = ({
       inputRange: [0, 1],
       outputRange: ["#6c757d", "#1A1B41"],
     }),
-    // 👇 este color debe ser el MISMO que el fondo general del formulario
     backgroundColor: "#d6e6f2",
     paddingHorizontal: 4,
     fontFamily: "SpaceGrotesk",
@@ -74,6 +76,8 @@ const FloatingInput: React.FC<FloatingInputProps> = ({
         value={value}
         onChangeText={onChangeText}
         secureTextEntry={isPassword}
+        keyboardType={keyboardType}
+        autoCapitalize="none"
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
         placeholder={!isFocused && !value ? label : ""}
@@ -87,12 +91,67 @@ const FloatingInput: React.FC<FloatingInputProps> = ({
   );
 };
 
-
 export default function LoginScreen() {
   const router = useRouter();
 
   const [correo, setCorreo] = useState("");
   const [contraseña, setContraseña] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLogin = async () => {
+    // Validación básica
+    if (!correo || !contraseña) {
+      Alert.alert("Error", "Por favor complete todos los campos");
+      return;
+    }
+
+    // Validar formato de correo
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(correo)) {
+      Alert.alert("Error", "Por favor ingrese un correo válido");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Buscar usuario en la base de datos
+      const user = getUserByEmail(correo.toLowerCase().trim()) as any;
+
+      if (!user) {
+        Alert.alert("Error", "Usuario no encontrado");
+        setIsLoading(false);
+        return;
+      }
+
+      // Verificar contraseña
+      if (user.clave !== contraseña) {
+        Alert.alert("Error", "Contraseña incorrecta");
+        setIsLoading(false);
+        return;
+      }
+
+      // Login exitoso
+      Alert.alert("Éxito", `Bienvenido ${user.nombre}!`, [
+        {
+          text: "OK",
+          onPress: () => {
+            // Aquí puedes guardar el usuario en contexto o AsyncStorage
+            router.push({
+              pathname: "./home",
+              params: { userId: user.id_usu }
+            });
+          }
+        }
+      ]);
+
+    } catch (error) {
+      console.error("Error en login:", error);
+      Alert.alert("Error", "Ocurrió un error al iniciar sesión");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <ScrollView
@@ -115,7 +174,12 @@ export default function LoginScreen() {
 
         {/* Formulario */}
         <View style={styles.form}>
-          <FloatingInput label="Correo" value={correo} onChangeText={setCorreo} />
+          <FloatingInput 
+            label="Correo" 
+            value={correo} 
+            onChangeText={setCorreo}
+            keyboardType="email-address"
+          />
           <FloatingInput
             label="Contraseña"
             value={contraseña}
@@ -127,28 +191,32 @@ export default function LoginScreen() {
         {/* Botones */}
         <View style={styles.buttonRow}>
           <TouchableOpacity
-            style={styles.loginButton}
-            onPress={() => router.push("./home")}
+            style={[styles.loginButton, isLoading && styles.buttonDisabled]}
+            onPress={handleLogin}
+            disabled={isLoading}
           >
             <Ionicons name="person-circle-outline" size={18} color="#F2D8C2" />
-            <Text style={styles.loginButtonText}> Inicia sesión</Text>
+            <Text style={styles.loginButtonText}>
+              {isLoading ? " Cargando..." : " Inicia sesión"}
+            </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.registerButton}
-            onPress={() => router.push("./registro")}>
+          <TouchableOpacity 
+            style={styles.registerButton}
+            onPress={() => router.push("./registro")}
+          >
             <AntDesign name="plus" size={18} color="#1A1B41" />
             <Text style={styles.registerButtonText}> Registrarse</Text>
           </TouchableOpacity>
         </View>
 
-         {/* Enlace de recuperación */}
+        {/* Enlace de recuperación */}
         <TouchableOpacity
-        onPress={() => alert("Función no disponible aún")}
+          onPress={() => Alert.alert("Función no disponible", "Esta función estará disponible próximamente")}
         >
-        <Text style={styles.forgotPasswordText}>¿Olvidó su contraseña?</Text>
+          <Text style={styles.forgotPasswordText}>¿Olvidó su contraseña?</Text>
         </TouchableOpacity>
       </View>
-      
     </ScrollView>
   );
 }
@@ -159,16 +227,15 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: "flex-start",
   },
-container: {
-  flex: 1,
-  alignItems: "center",
-  backgroundColor: "#f8f7f4",
-  paddingHorizontal: 25,
-  paddingTop: 60, // era 230 antes
-  paddingBottom: 60,
-  position: "relative",
-},
-
+  container: {
+    flex: 1,
+    alignItems: "center",
+    backgroundColor: "#f8f7f4",
+    paddingHorizontal: 25,
+    paddingTop: 60,
+    paddingBottom: 60,
+    position: "relative",
+  },
   backgroundCircle: {
     ...StyleSheet.absoluteFillObject,
     top: -width * 1.4,
@@ -178,10 +245,9 @@ container: {
     borderBottomRightRadius: width * 0.5,
   },
   logoContainer: {
-  alignItems: "center",
-  marginBottom: 10, // separación con el formulario
-},
-
+    alignItems: "center",
+    marginBottom: 10,
+  },
   logo: {
     width: width * 0.5,
     height: width * 0.5,
@@ -200,8 +266,8 @@ container: {
   inputContainer: {
     marginBottom: 25,
     position: "relative",
-    overflow: "visible", // 👈 evita que se corte la animación
-    paddingTop: 6, // 👈 espacio adicional arriba
+    overflow: "visible",
+    paddingTop: 6,
   },
   input: {
     backgroundColor: "#d6e6f2",
@@ -254,14 +320,16 @@ container: {
     fontFamily: "SpaceGrotesk-Bold",
     fontSize: 15,
   },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
   forgotPasswordText: {
-  alignSelf: "flex-end",
-  marginTop: 10,
-  marginBottom: 20,
-  color: "#1A1B41",
-  fontSize: 14,
-  fontFamily: "SpaceGrotesk-Bold",
-  textDecorationLine: "underline",
-},
-
+    alignSelf: "flex-end",
+    marginTop: 10,
+    marginBottom: 20,
+    color: "#1A1B41",
+    fontSize: 14,
+    fontFamily: "SpaceGrotesk-Bold",
+    textDecorationLine: "underline",
+  },
 });
