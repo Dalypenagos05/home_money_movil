@@ -1,8 +1,8 @@
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
-import React from "react";
+import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
-
+import { initDatabase } from "../database/db";
 
 export default function RootLayout() {
   
@@ -14,6 +14,11 @@ export default function RootLayout() {
     "Montserrat": require("../assets/fonts/Montserrat.ttf"),
     "Montserrat-Bold": require("../assets/fonts/Montserrat-Bold.ttf"),
   });
+
+  // Initialize database when app loads
+  useEffect(() => {
+    initDatabase();
+  }, []);
 
   if (!fontsLoaded) {
     return (

@@ -1,7 +1,9 @@
-import { AntDesign, Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  Alert,
+  Animated,
   Dimensions,
   Image,
   ScrollView,
@@ -10,9 +12,9 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Animated,
 } from "react-native";
 import CustomText from "../../components/CustomText";
+import { createUser, getUserByEmail } from "../../database/db";
 
 const { width } = Dimensions.get("window");
 
@@ -22,6 +24,7 @@ type FloatingInputProps = {
   value: string;
   onChangeText: (text: string) => void;
   isPassword?: boolean;
+  keyboardType?: "default" | "email-address" | "phone-pad";
 };
 
 const FloatingInput: React.FC<FloatingInputProps> = ({
@@ -29,8 +32,8 @@ const FloatingInput: React.FC<FloatingInputProps> = ({
   value,
   onChangeText,
   isPassword = false,
-}) => 
-  {
+  keyboardType = "default",
+}) => {
   const [isFocused, setIsFocused] = useState(false);
   const animatedLabel = useRef(new Animated.Value(value ? 1 : 0)).current;
 
@@ -57,7 +60,6 @@ const FloatingInput: React.FC<FloatingInputProps> = ({
       inputRange: [0, 1],
       outputRange: ["#6c757d", "#1A1B41"],
     }),
-    // 👇 este color debe ser el MISMO que el fondo general del formulario
     backgroundColor: "#d6e6f2",
     paddingHorizontal: 4,
     fontFamily: "SpaceGrotesk",
@@ -74,6 +76,8 @@ const FloatingInput: React.FC<FloatingInputProps> = ({
         value={value}
         onChangeText={onChangeText}
         secureTextEntry={isPassword}
+        keyboardType={keyboardType}
+        autoCapitalize={keyboardType === "email-address" ? "none" : "words"}
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
         placeholder={!isFocused && !value ? label : ""}
@@ -87,7 +91,6 @@ const FloatingInput: React.FC<FloatingInputProps> = ({
   );
 };
 
-
 export default function RegistroScreen() {
   const router = useRouter();
 
@@ -96,6 +99,82 @@ export default function RegistroScreen() {
   const [correo, setCorreo] = useState("");
   const [telefono, setTelefono] = useState("");
   const [contraseña, setContraseña] = useState("");
+  const [confirmarContraseña, setConfirmarContraseña] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleRegister = async () => {
+    // Validación de campos vacíos
+    if (!nombre || !apellido || !correo || !telefono || !contraseña || !confirmarContraseña) {
+      Alert.alert("Error", "Por favor complete todos los campos");
+      return;
+    }
+
+    // Validar formato de correo
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(correo)) {
+      Alert.alert("Error", "Por favor ingrese un correo válido");
+      return;
+    }
+
+    // Validar teléfono (solo números)
+    const phoneRegex = /^[0-9]{10,}$/;
+    if (!phoneRegex.test(telefono)) {
+      Alert.alert("Error", "El teléfono debe tener al menos 10 dígitos");
+      return;
+    }
+
+    // Validar longitud de contraseña
+    if (contraseña.length < 6) {
+      Alert.alert("Error", "La contraseña debe tener al menos 6 caracteres");
+      return;
+    }
+
+    // Validar que las contraseñas coincidan
+    if (contraseña !== confirmarContraseña) {
+      Alert.alert("Error", "Las contraseñas no coinciden");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Verificar si el usuario ya existe
+      const existingUser = getUserByEmail(correo.toLowerCase().trim());
+      
+      if (existingUser) {
+        Alert.alert("Error", "Ya existe un usuario con este correo");
+        setIsLoading(false);
+        return;
+      }
+
+      // Crear nuevo usuario
+      const userId = createUser({
+        nombre: nombre.trim(),
+        apellido: apellido.trim(),
+        correo: correo.toLowerCase().trim(),
+        telefono: telefono.trim(),
+        clave: contraseña, // En producción, deberías hashear la contraseña
+      });
+
+      // Registro exitoso
+      Alert.alert(
+        "¡Registro exitoso!",
+        `Bienvenido ${nombre}. Ya puedes iniciar sesión.`,
+        [
+          {
+            text: "OK",
+            onPress: () => router.push("./login")
+          }
+        ]
+      );
+
+    } catch (error) {
+      console.error("Error en registro:", error);
+      Alert.alert("Error", "Ocurrió un error al registrar el usuario");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <ScrollView
@@ -113,19 +192,43 @@ export default function RegistroScreen() {
             style={styles.logo}
             resizeMode="contain"
           />
-          <CustomText style={styles.logoTitle}>Registrarse</CustomText>
+          <CustomText style={styles.logoTitle}>Crear cuenta</CustomText>
         </View>
 
         {/* Formulario */}
         <View style={styles.form}>
-          <FloatingInput label="Nombre" value={nombre} onChangeText={setNombre} />
-          <FloatingInput label="Apellido" value={apellido} onChangeText={setApellido} />
-          <FloatingInput label="Correo" value={correo} onChangeText={setCorreo} />
-          <FloatingInput label="Teléfono" value={telefono} onChangeText={setTelefono} />
+          <FloatingInput 
+            label="Nombre" 
+            value={nombre} 
+            onChangeText={setNombre}
+          />
+          <FloatingInput 
+            label="Apellido" 
+            value={apellido} 
+            onChangeText={setApellido}
+          />
+          <FloatingInput 
+            label="Correo" 
+            value={correo} 
+            onChangeText={setCorreo}
+            keyboardType="email-address"
+          />
+          <FloatingInput 
+            label="Teléfono" 
+            value={telefono} 
+            onChangeText={setTelefono}
+            keyboardType="phone-pad"
+          />
           <FloatingInput
             label="Contraseña"
             value={contraseña}
             onChangeText={setContraseña}
+            isPassword
+          />
+          <FloatingInput
+            label="Confirmar contraseña"
+            value={confirmarContraseña}
+            onChangeText={setConfirmarContraseña}
             isPassword
           />
         </View>
@@ -133,18 +236,31 @@ export default function RegistroScreen() {
         {/* Botones */}
         <View style={styles.buttonRow}>
           <TouchableOpacity
-            style={styles.loginButton}
-            onPress={() => router.push("./login")}
+            style={[styles.registerButton, isLoading && styles.buttonDisabled]}
+            onPress={handleRegister}
+            disabled={isLoading}
           >
-            <Ionicons name="person-circle-outline" size={18} color="#F2D8C2" />
-            <Text style={styles.loginButtonText}> Inicia sesión</Text>
+            <Ionicons name="person-add-outline" size={18} color="#1A1B41" />
+            <Text style={styles.registerButtonText}>
+              {isLoading ? " Registrando..." : " Registrarse"}
+            </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.registerButton}>
-            <AntDesign name="plus" size={18} color="#1A1B41" />
-            <Text style={styles.registerButtonText}> Registrarse</Text>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="arrow-back" size={18} color="#F2D8C2" />
+            <Text style={styles.backButtonText}> Volver</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Enlace a login */}
+        <TouchableOpacity
+          onPress={() => router.push("./login")}
+        >
+          <Text style={styles.loginLinkText}>¿Ya tienes cuenta? Inicia sesión</Text>
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
@@ -161,46 +277,42 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#f8f7f4",
     paddingHorizontal: 25,
-    paddingTop: 230, // más espacio entre el título y el formulario
+    paddingTop: 40,
     paddingBottom: 60,
     position: "relative",
   },
   backgroundCircle: {
     ...StyleSheet.absoluteFillObject,
     top: -width * 1.4,
-    height: width * 2,
+    height: width * 2.2,
     backgroundColor: "#1a1a40",
     borderBottomLeftRadius: width * 0.25,
     borderBottomRightRadius: width * 0.5,
   },
   logoContainer: {
-    position: "absolute",
-    top: 20,
-    left: 0,
-    right: 0,
     alignItems: "center",
-    zIndex: 2,
+    marginBottom: 10,
   },
   logo: {
-    width: width * 0.3,
-    height: width * 0.3,
+    width: width * 0.4,
+    height: width * 0.4,
     marginBottom: 8,
   },
   logoTitle: {
-    fontSize: 30,
+    fontSize: 28,
     color: "#F2D8C2",
-    marginTop: -10,
-    marginBottom: 60,
+    marginTop: -20,
+    marginBottom: 40,
     fontFamily: "Montserrat-Bold",
   },
   form: {
     width: "100%",
   },
   inputContainer: {
-    marginBottom: 25,
+    marginBottom: 20,
     position: "relative",
-    overflow: "visible", // 👈 evita que se corte la animación
-    paddingTop: 5, // 👈 espacio adicional arriba
+    overflow: "visible",
+    paddingTop: 6,
   },
   input: {
     backgroundColor: "#d6e6f2",
@@ -221,17 +333,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     width: "100%",
-    marginTop: 35,
-  },
-  loginButton: {
-    flexDirection: "row",
-    backgroundColor: "#1A1B41",
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 15,
-    alignItems: "center",
-    flex: 0.48,
-    justifyContent: "center",
+    marginTop: 25,
   },
   registerButton: {
     flexDirection: "row",
@@ -243,14 +345,35 @@ const styles = StyleSheet.create({
     flex: 0.48,
     justifyContent: "center",
   },
-  loginButtonText: {
-    color: "#F2D8C2",
-    fontFamily: "SpaceGrotesk-Bold",
-    fontSize: 15,
+  backButton: {
+    flexDirection: "row",
+    backgroundColor: "#1A1B41",
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    alignItems: "center",
+    flex: 0.48,
+    justifyContent: "center",
   },
   registerButtonText: {
     color: "#1A1B41",
     fontFamily: "SpaceGrotesk-Bold",
     fontSize: 15,
+  },
+  backButtonText: {
+    color: "#F2D8C2",
+    fontFamily: "SpaceGrotesk-Bold",
+    fontSize: 15,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  loginLinkText: {
+    alignSelf: "center",
+    marginTop: 15,
+    color: "#1A1B41",
+    fontSize: 14,
+    fontFamily: "SpaceGrotesk-Bold",
+    textDecorationLine: "underline",
   },
 });
