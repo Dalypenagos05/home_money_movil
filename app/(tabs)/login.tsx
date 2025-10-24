@@ -43,7 +43,7 @@ const FloatingInput: React.FC<FloatingInputProps> = ({
       duration: 180,
       useNativeDriver: false,
     }).start();
-  }, [isFocused, value]);
+  }, [isFocused, value, animatedLabel]);
 
   const labelStyle = {
     position: "absolute",
@@ -131,19 +131,8 @@ export default function LoginScreen() {
         return;
       }
 
-      // Login exitoso
-      Alert.alert("Éxito", `Bienvenido ${user.nombre}!`, [
-        {
-          text: "OK",
-          onPress: () => {
-            // Aquí puedes guardar el usuario en contexto o AsyncStorage
-            router.push({
-              pathname: "./home",
-              params: { userId: user.id_usu }
-            });
-          }
-        }
-      ]);
+      // Login exitoso — redirigir inmediatamente a homeScreen
+      router.replace('./homeScreen');
 
     } catch (error) {
       console.error("Error en login:", error);
