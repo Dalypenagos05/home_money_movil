@@ -21,3 +21,15 @@ export function getCategories(): Category[] {
 export function addCategory(cat: Category) {
   CATEGORIES.push(cat);
 }
+
+export function updateCategory(cat: Category) {
+  const idx = CATEGORIES.findIndex(c => c.id === cat.id);
+  if (idx >= 0) {
+    CATEGORIES[idx] = cat;
+  }
+}
+
+export function removeCategory(id: string) {
+  const idx = CATEGORIES.findIndex(c => c.id === id);
+  if (idx >= 0) CATEGORIES.splice(idx, 1);
+}

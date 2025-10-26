@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#EDEAE6' },
   screen: { flex: 1 },
   container: { alignItems: 'center', padding: 16 },
-  title: { fontSize: 20, marginTop: 8, marginBottom: 8, color: '#333', fontWeight: '600' },
+  title: { fontSize: 20, marginTop: 8, marginBottom: 8, color: '#333', fontWeight: '600', fontFamily: 'SpaceGrotesk-Bold' },
   donutWrap: { width: 320, height: 320, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
   centerBubble: {
     position: 'absolute',
@@ -175,8 +175,8 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 4,
   },
-  balanceLabel: { fontSize: 20, color: '#222', fontWeight: '600' },
-  balanceAmount: { fontSize: 22, color: '#222', marginTop: 6, fontWeight: '700' },
+  balanceLabel: { fontSize: 20, color: '#222', fontWeight: '600', fontFamily: 'SpaceGrotesk-Medium' },
+  balanceAmount: { fontSize: 22, color: '#222', marginTop: 6, fontWeight: '700', fontFamily: 'Montserrat-Bold' },
   listWrap: { width: '100%', marginTop: 24 },
   card: {
     flexDirection: 'row',
@@ -189,8 +189,8 @@ const styles = StyleSheet.create({
   },
   cardLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   cardIcon: { fontSize: 24, marginRight: 12 },
-  cardTitle: { fontSize: 16, fontWeight: '600', color: '#13233A' },
-  cardSubtitle: { fontSize: 12, color: '#2E495C', marginTop: 2 },
+  cardTitle: { fontSize: 16, fontWeight: '600', color: '#13233A', fontFamily: 'Montserrat-Bold' },
+  cardSubtitle: { fontSize: 12, color: '#2E495C', marginTop: 2, fontFamily: 'Montserrat' },
   cardColor: { width: 48, height: 48, borderRadius: 8 },
 
   bottomNavWrap: {
@@ -224,9 +224,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   navIcon: { fontSize: 18 },
-  navLabel: { fontSize: 11, marginTop: 2, color: '#2A3B4A' },
+  navLabel: { fontSize: 11, marginTop: 2, color: '#2A3B4A', fontFamily: 'Montserrat-Bold' },
   // top-right profile avatar
   profileBtn: { position: 'absolute', top: 12, right: 18, zIndex: 20 },
-  profileAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#0B6B6B', alignItems: 'center', justifyContent: 'center', elevation: 4 },
+  profileAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#1A1B41', alignItems: 'center', justifyContent: 'center', elevation: 4 },
   profileImage: { width: 36, height: 36, borderRadius: 18 },
 });

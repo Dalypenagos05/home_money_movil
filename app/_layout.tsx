@@ -2,6 +2,7 @@ import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import React, { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initDatabase } from "../database/db";
 import { AuthProvider } from "./lib/authContext";
 import { ProfileProvider } from "./lib/profileContext";
@@ -31,10 +32,12 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <ProfileProvider>
-        <Stack />
-      </ProfileProvider>
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <ProfileProvider>
+          <Stack />
+        </ProfileProvider>
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }
