@@ -1,37 +1,83 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef } from 'react';
 import { Alert, Animated, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Nota: este archivo usa expo-image-picker. Si no lo tienes instalado, ejecuta:
 // npm install expo-image-picker
 // y luego reinicia el bundler (expo start -c)
 
+import { updateUser } from '../../database/db'; // add
+import { useAuth } from '../lib/authContext';
 import { useProfile } from '../lib/profileContext';
 
 export default function PerfilScreen() {
+  const { user, setUser } = useAuth(); // include setUser
   const router = useRouter();
-  // datos de ejemplo — en una app real vendrían del backend o de contexto/auth
-  const [name] = React.useState('Juan Pérez');
-  const [email, setEmail] = React.useState('juan.perez@example.com');
-  const [phone, setPhone] = React.useState('+57 300 000 0000');
+  const insets = useSafeAreaInsets();
+
+  const [name, setName] = React.useState(user ? `${user.nombre} ${user.apellido}` : '');
+  const [email, setEmail] = React.useState(user?.correo ?? '');
+  const [phone, setPhone] = React.useState(user?.telefono ?? '');
   const [editing, setEditing] = React.useState(false);
+  const [saving, setSaving] = React.useState(false); // add
   const { imageUri, setImageUri } = useProfile();
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  const handleSave = () => {
-    // Aquí solo actualizamos el estado local. En una app real deberías
-    // subir la imagen/actualizar el perfil en el backend y persistir los cambios.
-    Alert.alert('Perfil actualizado', 'Tus cambios se han guardado localmente.');
-    console.log({ email, phone });
-    setEditing(false);
+  const handleSave = async () => {
+    if (!user) {
+      Alert.alert('Error', 'No hay un usuario activo.');
+      return;
+    }
+    const emailTrim = email.trim().toLowerCase();
+    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim);
+    if (!emailOk) {
+      Alert.alert('Correo inválido', 'Ingrese un correo válido.');
+      return;
+    }
+    if (!phone.trim()) {
+      Alert.alert('Teléfono inválido', 'Ingrese un teléfono.');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      // persist to DB
+      updateUser(user.id_usu, { correo: emailTrim, telefono: phone.trim() });
+
+      // update context (persists to AsyncStorage via AuthProvider)
+      setUser({ ...user, correo: emailTrim, telefono: phone.trim() });
+
+      Alert.alert('Perfil actualizado', 'Tus cambios se han guardado.');
+      setEditing(false);
+    } catch (err: any) {
+      const msg = String(err?.message ?? '');
+      if (msg.includes('UNIQUE constraint failed') && msg.includes('usuario.correo')) {
+        Alert.alert('Correo en uso', 'Ya existe una cuenta con ese correo.');
+      } else {
+        Alert.alert('Error', 'No se pudo guardar los cambios.');
+      }
+      console.warn('updateUser error', err);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCancel = () => {
     setEditing(false);
   };
+
+  useEffect(() => {
+    if (user) {
+      setName(`${user.nombre} ${user.apellido}`);
+      setEmail(user.correo ?? '');
+      setPhone(user.telefono ?? '');
+    }
+  }, [user]);
 
   useEffect(() => {
     // request permission for media library on mount (best-effort)
@@ -45,28 +91,54 @@ export default function PerfilScreen() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (user?.foto_uri) setImageUri(user.foto_uri);
+  }, [user?.foto_uri]);
+
+  // Helper to support both old (MediaTypeOptions) and new (MediaType) APIs
+  const pickerImagesMediaType = () => {
+    const anyPicker = ImagePicker as any;
+    if (anyPicker?.MediaType?.Images) return anyPicker.MediaType.Images;            // new API
+    if (anyPicker?.MediaTypeOptions?.Images) return anyPicker.MediaTypeOptions.Images; // old API
+    return undefined; // let ImagePicker default if neither exists
+  };
+
   const pickImage = async () => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      // request & pick
+      const result: any = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: (ImagePicker as any)?.MediaType?.Images ?? (ImagePicker as any)?.MediaTypeOptions?.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 0.9,
       });
-
-      // expo-image-picker returns different shapes depending on version; handle both
-      // modern versions: { canceled: boolean, assets: [{ uri }] }
-      // older versions: { cancelled: boolean, uri }
-      // @ts-ignore - tolerate both shapes at runtime
       const canceled = result.canceled ?? result.cancelled;
-      if (!canceled) {
-        // @ts-ignore
-        const uri = result.assets ? result.assets[0].uri : result.uri;
-        setImageUri(uri);
-        // trigger fade-in
-        fadeAnim.setValue(0);
-        Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
-      }
+      if (canceled || !user) return;
+
+      const asset = result.assets?.[0];
+      const src = asset?.uri ?? result.uri;
+      if (!src) return;
+
+      // Create a real file in app storage (avoids content:// issues)
+      const manipulated = await ImageManipulator.manipulateAsync(
+        src,
+        [], // no ops; just re-encode to get a file:// uri we control
+        { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
+      );
+
+      const dir = `${FileSystem.documentDirectory}profile/`;
+      await FileSystem.makeDirectoryAsync(dir, { intermediates: true }).catch(() => {});
+      const dest = `${dir}hm_user_${user.id_usu}.jpg`;
+
+      await FileSystem.copyAsync({ from: manipulated.uri, to: dest });
+
+      // Update DB + context
+      updateUser(user.id_usu, { foto_uri: dest });
+      setUser({ ...user, foto_uri: dest });
+      setImageUri(dest);
+
+      fadeAnim.setValue(0);
+      Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
     } catch (err) {
       console.warn('Image pick error', err);
     }
@@ -79,11 +151,22 @@ export default function PerfilScreen() {
     ]);
   };
 
-  const removePhoto = () => {
-    setImageUri(null);
-    // small fade out effect
-    fadeAnim.setValue(0);
-    Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+  const removePhoto = async () => {
+    try {
+      if (user?.foto_uri) {
+        const info = await FileSystem.getInfoAsync(user.foto_uri);
+        if (info.exists) await FileSystem.deleteAsync(user.foto_uri, { idempotent: true });
+      }
+      if (user) {
+        updateUser(user.id_usu, { foto_uri: null });
+        setUser({ ...user, foto_uri: null });
+      }
+      setImageUri(null);
+      fadeAnim.setValue(0);
+      Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+    } catch (e) {
+      console.warn('removePhoto error', e);
+    }
   };
 
   return (
@@ -141,35 +224,39 @@ export default function PerfilScreen() {
               <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#ccc' }]} onPress={handleCancel}>
                 <Text style={styles.actionText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#2A9D8F' }]} onPress={handleSave}>
-                <Text style={[styles.actionText, styles.actionTextPrimary]}>Guardar</Text>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: '#2A9D8F' }, saving && { opacity: 0.6 }]}
+                onPress={handleSave}
+                disabled={saving}
+              >
+                <Text style={[styles.actionText, styles.actionTextPrimary]}>
+                  {saving ? 'Guardando...' : 'Guardar'}
+                </Text>
               </TouchableOpacity>
             </View>
           )}
   </View>
 
-        {/* removed duplicate lower avatar/edit area (profile is view-only by default) */}
-      </View>
-
-      {/* Bottom navigation bar (same as Home/CrearMonto) */}
-      <View style={styles.bottomNavWrap} pointerEvents="box-none">
-        <View style={styles.bottomNav}>
-          <TouchableOpacity style={[styles.navItem]} onPress={() => router.push('./homeScreen')}>
-            <Ionicons name="home-outline" size={22} color="#2A3B4A" />
-            <Text style={styles.navLabel}>Inicio</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.navItem]} onPress={() => router.push('./crearCategoria')}>
-            <Ionicons name="folder-open-outline" size={22} color="#2A3B4A" />
-            <Text style={styles.navLabel}>Categoria</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem} onPress={() => router.push('./crearMonto')}>
-            <Ionicons name="cash-outline" size={22} color="#2A3B4A" />
-            <Text style={styles.navLabel}>Monto</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.navItem, styles.navActive]} onPress={() => router.push('./perfil')}>
-            <Ionicons name="settings-outline" size={22} color="#2A3B4A" />
-            <Text style={styles.navLabel}>Ajustes</Text>
-          </TouchableOpacity>
+        {/* Bottom navigation bar */}
+        <View style={[styles.bottomNavWrap, { bottom: Math.max(12, insets.bottom + 8) }]} pointerEvents="box-none">
+          <View style={styles.bottomNav}>
+            <TouchableOpacity style={[styles.navItem]} onPress={() => router.push('./homeScreen')}>
+              <Ionicons name="home-outline" size={22} color="#2A3B4A" />
+              <Text style={styles.navLabel}>Inicio</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.navItem]} onPress={() => router.push('./crearCategoria')}>
+              <Ionicons name="folder-open-outline" size={22} color="#2A3B4A" />
+              <Text style={styles.navLabel}>Categoria</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.navItem} onPress={() => router.push('./crearMonto')}>
+              <Ionicons name="cash-outline" size={22} color="#2A3B4A" />
+              <Text style={styles.navLabel}>Monto</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.navItem, styles.navActive]} onPress={() => router.push('./perfil')}>
+              <Ionicons name="settings-outline" size={22} color="#2A3B4A" />
+              <Text style={styles.navLabel}>Ajustes</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </SafeAreaView>
@@ -178,7 +265,7 @@ export default function PerfilScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#E6F4FF' },
-  container: { padding: 20 },
+  container: { flex: 1, position: 'relative', padding: 20, paddingBottom: 100 }, // ensure full height + space for nav
   title: { fontSize: 22, fontWeight: '700', marginBottom: 20, textAlign: 'center' },
   // existing avatar styles (kept for potential reuse)
   avatarRow: { flexDirection: 'row', alignItems: 'center' },
@@ -226,7 +313,7 @@ const styles = StyleSheet.create({
   actionText: { fontFamily: 'Montserrat', color: '#22333B' },
   actionTextPrimary: { color: '#fff', fontFamily: 'Montserrat-Bold' },
   // bottom nav (shared)
-  bottomNavWrap: { position: 'absolute', left: 0, right: 0, bottom: 18, alignItems: 'center' },
+  bottomNavWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' }, // bottom set dynamically
   bottomNav: { width: '92%', backgroundColor: '#E6F0F5', borderRadius: 18, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 6, height: 56 },
   navItem: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   navActive: { backgroundColor: '#D7EDF7', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },

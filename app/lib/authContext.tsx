@@ -1,70 +1,63 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system/legacy';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-type User = {
-  id_usu: string;
-  nombre?: string;
-  correo?: string;
-  [key: string]: any;
+export type User = {
+  id_usu: number;
+  nombre: string;
+  apellido: string;
+  correo: string;
+  telefono?: string | null;
+  foto_uri?: string | null; // added
 };
 
 type AuthContextType = {
   user: User | null;
-  loading: boolean;
-  signIn: (user: User) => Promise<void>;
-  signOut: () => Promise<void>;
   setUser: (u: User | null) => void;
+  signOut: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const STORAGE_KEY = '@app_auth_user_v1';
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  setUser: () => {},
+  signOut: async () => {},
+});
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
 
+  // hydrate from storage
   useEffect(() => {
     (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          setUser(JSON.parse(raw));
-        }
-      } catch (err) {
-        console.warn('Failed to load auth from storage', err);
-      } finally {
-        setLoading(false);
+      const raw = await AsyncStorage.getItem('hm:user');
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed?.foto_uri) {
+        try {
+          const info = await FileSystem.getInfoAsync(parsed.foto_uri);
+          if (!info.exists) parsed.foto_uri = null;
+        } catch {}
       }
+      setUser(parsed);
     })();
   }, []);
 
-  const persist = async (u: User | null) => {
-    try {
-      if (u) {
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(u));
-      } else {
-        await AsyncStorage.removeItem(STORAGE_KEY);
-      }
-    } catch (err) {
-      console.warn('Failed to persist auth', err);
-    }
-  };
-
-  const signIn = async (u: User) => {
-    setUser(u);
-    await persist(u);
-  };
+  // persist on change
+  useEffect(() => {
+    if (user) AsyncStorage.setItem('hm:user', JSON.stringify(user));
+    else AsyncStorage.removeItem('hm:user');
+  }, [user]);
 
   const signOut = async () => {
     setUser(null);
-    await persist(null);
+    await AsyncStorage.removeItem('hm:user');
   };
 
-  return <AuthContext.Provider value={{ user, loading, signIn, signOut, setUser }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, setUser, signOut }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
-export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-  return ctx;
-};
+export const useAuth = () => useContext(AuthContext);

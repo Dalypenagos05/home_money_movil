@@ -3,22 +3,47 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from "react";
 import { Alert, Animated, Easing, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import IconGridDropdown, { IconName } from '../../components/IconGridDropdown';
-import { addCategory, Category, getCategories, removeCategory, updateCategory } from '../lib/categories';
+import { createCategoria, deleteCategoria, getCategoriasByUser, updateCategoria } from '../../database/db';
+import { useAuth } from '../lib/authContext';
 
 const COLOR_OPTIONS = ['#D7EDF7', '#7ED9FF', '#0B6B6B', '#79A9E1', '#9D8F86', '#F7C6C6', '#F2D8C2'];
 
+type Category = {
+  id_categoria: number;
+  nombre: string;
+  icono?: string;
+  color?: string;
+  id_usu: number;
+};
 
-
-export default function CrearCategoria({ navigation }: { navigation: any }) {
+export default function CrearCategoria() {
   const router = useRouter();
+  const { user } = useAuth(); // Get current user
+  
   const [nombre, setNombre] = useState("");
   const [icono, setIcono] = useState<IconName | undefined>(undefined);
   const [color, setColor] = useState<string>('#D7EDF7');
   const [errors, setErrors] = useState<{ nombre?: boolean; icono?: boolean }>({});
-  // animated scale refs per color
   const scaleRefs = useRef<Record<string, Animated.Value>>({});
-  const [categories, setCategories] = useState<Category[]>(() => getCategories());
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [editingId, setEditingId] = useState<number | null>(null);
+
+  // Load categories when component mounts or user changes
+  useEffect(() => {
+    if (user) {
+      loadCategories();
+    }
+  }, [user]);
+
+  const loadCategories = async () => {
+    if (!user) return;
+    try {
+      const cats = getCategoriasByUser(user.id_usu) as Category[];
+      setCategories(cats);
+    } catch (error) {
+      console.error('Error loading categories:', error);
+    }
+  };
 
   useEffect(() => {
     // initialize Animated.Values for each color option
@@ -37,7 +62,6 @@ export default function CrearCategoria({ navigation }: { navigation: any }) {
   };
 
   const getContrastColor = (hex: string) => {
-    // simple luminance check
     const h = hex.replace('#', '');
     const r = parseInt(h.substring(0, 2), 16);
     const g = parseInt(h.substring(2, 4), 16);
@@ -46,40 +70,83 @@ export default function CrearCategoria({ navigation }: { navigation: any }) {
     return luminance < 140 ? '#ffffff' : '#13233A';
   };
 
-  const handleCrear = () => {
-    console.log("Nuevo registro:", { nombre, icono, color });
-    // add to in-memory categories so other screens can consume it during this session
+  const handleCrear = async () => {
+    // Check if user is logged in
+    if (!user) {
+      Alert.alert('Error', 'Debes iniciar sesión para crear categorías');
+      router.push('./login');
+      return;
+    }
+
     // Validate required fields
     const missing: string[] = [];
     if (!nombre || !nombre.trim()) missing.push('Nombre');
     if (!icono) missing.push('Icono');
 
     if (missing.length > 0) {
-      // mark visual errors
       setErrors({ nombre: missing.includes('Nombre'), icono: missing.includes('Icono') });
       Alert.alert('Campos incompletos', `Por favor completa: ${missing.join(', ')}`);
       return;
     }
 
-    console.log("Nuevo registro:", { nombre, icono, color });
-    // add to in-memory categories so other screens can consume it during this session
-    if (editingId) {
-      // update existing
-      updateCategory({ id: editingId, name: nombre.trim(), subtitle: '', color: color, icon: icono });
+    try {
+      if (editingId) {
+        // Update existing category
+        updateCategoria(editingId, {
+          nombre: nombre.trim(),
+          icono: icono,
+          color: color,
+        });
+        Alert.alert('Éxito', 'Categoría actualizada 🎉');
+        setEditingId(null);
+      } else {
+        // Create new category
+        createCategoria({
+          nombre: nombre.trim(),
+          id_usu: user.id_usu,
+          icono: icono,
+          color: color,
+        });
+        Alert.alert('Éxito', 'Categoría creada con éxito 🎉');
+      }
+
+      // Reload categories from database
+      await loadCategories();
+
+      // Clear form
+      setNombre('');
+      setIcono(undefined);
+      setColor(COLOR_OPTIONS[0]);
       setErrors({});
-      Alert.alert('Éxito', 'Categoría actualizada 🎉');
-      setEditingId(null);
-    } else {
-      addCategory({ id: String(Date.now()), name: nombre.trim(), subtitle: '', color: color, icon: icono });
-      setErrors({});
-      Alert.alert('Éxito', 'Categoría creada con éxito 🎉');
+    } catch (error) {
+      console.error("Error saving category:", error);
+      Alert.alert('Error', 'No se pudo guardar la categoría. Inténtalo de nuevo.');
     }
-    // refresh local list
-    setCategories(getCategories());
-    // clear form after save
-    setNombre('');
-    setIcono(undefined);
-    setColor(COLOR_OPTIONS[0]);
+  };
+
+  const handleDelete = (id: number, name: string) => {
+    Alert.alert('Eliminar categoría', `¿Eliminar "${name}"?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            deleteCategoria(id);
+            await loadCategories();
+            if (editingId === id) {
+              setEditingId(null);
+              setNombre('');
+              setIcono(undefined);
+              setColor(COLOR_OPTIONS[0]);
+            }
+          } catch (error) {
+            console.error('Error deleting category:', error);
+            Alert.alert('Error', 'No se pudo eliminar la categoría');
+          }
+        },
+      },
+    ]);
   };
 
   return (
@@ -101,7 +168,7 @@ export default function CrearCategoria({ navigation }: { navigation: any }) {
           {errors.nombre ? <Text style={styles.errorText}>El nombre es requerido.</Text> : null}
 
           <Text style={styles.label}>Icono</Text>
-          <TouchableOpacity style={[styles.selectBox, errors.icono ? styles.inputError : null]} onPress={() => { /* IconGridDropdown modal is inline */ }}>
+          <TouchableOpacity style={[styles.selectBox, errors.icono ? styles.inputError : null]}>
             <IconGridDropdown selectedIcon={icono} onSelect={(i) => { setIcono(i); setErrors(prev => ({ ...prev, icono: false })); }} />
           </TouchableOpacity>
           {errors.icono ? <Text style={styles.errorText}>Selecciona un icono.</Text> : null}
@@ -142,37 +209,29 @@ export default function CrearCategoria({ navigation }: { navigation: any }) {
           </View>
         </View>
 
-        {/* Lista horizontal de categorías */}
         <Text style={styles.sectionTitle}>Tus categorías</Text>
         <FlatList
           data={categories}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.catList}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.id_categoria.toString()}
           renderItem={({ item }) => (
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={() => {
-                // populate form for editing
-                setNombre(item.name);
-                setIcono(item.icon as IconName);
+                setNombre(item.nombre);
+                setIcono(item.icono as IconName);
                 setColor(item.color ?? COLOR_OPTIONS[0]);
-                setEditingId(item.id);
+                setEditingId(item.id_categoria);
               }}
-              onLongPress={() => {
-                // confirm delete
-                Alert.alert('Eliminar categoría', `¿Eliminar "${item.name}"?`, [
-                  { text: 'Cancelar', style: 'cancel' },
-                  { text: 'Eliminar', style: 'destructive', onPress: () => { removeCategory(item.id); setCategories(getCategories()); if (editingId===item.id) { setEditingId(null); setNombre(''); setIcono(undefined); } } }
-                ]);
-              }}
+              onLongPress={() => handleDelete(item.id_categoria, item.nombre)}
             >
-              <View style={[styles.catCard, { backgroundColor: item.color ?? '#fff' }] as any}>
+              <View style={[styles.catCard, { backgroundColor: item.color ?? '#fff' }]}>
                 <View style={styles.catIconWrap}>
-                  <Ionicons name={item.icon as IconName} size={20} color={getContrastColor(item.color ?? '#fff')} />
+                  <Ionicons name={(item.icono || 'folder-outline') as any} size={20} color={getContrastColor(item.color ?? '#fff')} />
                 </View>
-                <Text style={styles.catName}>{item.name}</Text>
+                <Text style={styles.catName}>{item.nombre}</Text>
               </View>
             </TouchableOpacity>
           )}
@@ -182,7 +241,7 @@ export default function CrearCategoria({ navigation }: { navigation: any }) {
 
         <View style={styles.bottomNavWrap} pointerEvents="box-none">
           <View style={styles.bottomNav}>
-            <TouchableOpacity style={[styles.navItem]} onPress={() => router.push('./homeScreen')}>
+            <TouchableOpacity style={styles.navItem} onPress={() => router.push('./homeScreen')}>
               <Ionicons name="home-outline" size={22} color="#2A3B4A" />
               <Text style={styles.navLabel}>Inicio</Text>
             </TouchableOpacity>
@@ -194,9 +253,9 @@ export default function CrearCategoria({ navigation }: { navigation: any }) {
               <Ionicons name="cash-outline" size={22} color="#2A3B4A" />
               <Text style={styles.navLabel}>Monto</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.navItem} onPress={() => router.push('./blog')}>
-              <Ionicons name="newspaper-outline" size={22} color="#2A3B4A" />
-              <Text style={styles.navLabel}>Blog</Text>
+            <TouchableOpacity style={styles.navItem} onPress={() => router.push('./perfil')}>
+              <Ionicons name="settings-outline" size={22} color="#2A3B4A" />
+              <Text style={styles.navLabel}>Ajustes</Text>
             </TouchableOpacity>
           </View>
         </View>

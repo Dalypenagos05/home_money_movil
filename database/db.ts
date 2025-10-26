@@ -7,7 +7,6 @@ export const db = SQLite.openDatabaseSync('homemoney.db');
 export const initDatabase = () => {
   try {
     db.execSync(`
-      -- Usuario table
       CREATE TABLE IF NOT EXISTS usuario (
         id_usu INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT NOT NULL,
@@ -18,7 +17,6 @@ export const initDatabase = () => {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
 
-      -- Categoria table
       CREATE TABLE IF NOT EXISTS categoria (
         id_categoria INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT NOT NULL,
@@ -77,6 +75,21 @@ export const initDatabase = () => {
       CREATE INDEX IF NOT EXISTS idx_categoria_usuario ON categoria(id_usu);
       CREATE INDEX IF NOT EXISTS idx_blog_usuario ON blog(id_usu);
     `);
+
+    // Add icon and color columns if they don't exist
+    try {
+      db.execSync(`ALTER TABLE categoria ADD COLUMN icono TEXT;`);
+      db.execSync(`ALTER TABLE categoria ADD COLUMN color TEXT;`);
+    } catch (e) {
+      // ignore if columns already exist
+    }
+    
+    // Add foto_uri column if it doesn't exist
+    try {
+      db.execSync(`ALTER TABLE usuario ADD COLUMN foto_uri TEXT;`);
+    } catch (e) {
+      // ignore if it already exists
+    }
     console.log('Database initialized successfully');
   } catch (error) {
     console.error('Error initializing database:', error);
@@ -122,30 +135,23 @@ export const updateUser = (id_usu: number, updates: {
   nombre?: string;
   apellido?: string;
   telefono?: string;
+  correo?: string;
+  foto_uri?: string | null; // allow setting or clearing the photo
 }) => {
   try {
-    const fields = [];
-    const values = [];
-    
-    if (updates.nombre) {
-      fields.push('nombre = ?');
-      values.push(updates.nombre);
-    }
-    if (updates.apellido) {
-      fields.push('apellido = ?');
-      values.push(updates.apellido);
-    }
-    if (updates.telefono) {
-      fields.push('telefono = ?');
-      values.push(updates.telefono);
-    }
-    
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (updates.nombre !== undefined) { fields.push('nombre = ?'); values.push(updates.nombre); }
+    if (updates.apellido !== undefined) { fields.push('apellido = ?'); values.push(updates.apellido); }
+    if (updates.telefono !== undefined) { fields.push('telefono = ?'); values.push(updates.telefono); }
+    if (updates.correo !== undefined) { fields.push('correo = ?'); values.push(updates.correo.toLowerCase().trim()); }
+    if (updates.foto_uri !== undefined) { fields.push('foto_uri = ?'); values.push(updates.foto_uri); }
+
+    if (fields.length === 0) return;
+
     values.push(id_usu);
-    
-    db.runSync(
-      `UPDATE usuario SET ${fields.join(', ')} WHERE id_usu = ?`,
-      values
-    );
+    db.runSync(`UPDATE usuario SET ${fields.join(', ')} WHERE id_usu = ?`, values);
   } catch (error) {
     console.error('Error updating user:', error);
     throw error;
@@ -157,11 +163,13 @@ export const updateUser = (id_usu: number, updates: {
 export const createCategoria = (categoria: {
   nombre: string;
   id_usu: number;
+  icono?: string;
+  color?: string;
 }) => {
   try {
     const result = db.runSync(
-      `INSERT INTO categoria (nombre, id_usu) VALUES (?, ?)`,
-      [categoria.nombre, categoria.id_usu]
+      `INSERT INTO categoria (nombre, id_usu, icono, color) VALUES (?, ?, ?, ?)`,
+      [categoria.nombre, categoria.id_usu, categoria.icono || null, categoria.color || null]
     );
     return result.lastInsertRowId;
   } catch (error) {
@@ -180,6 +188,29 @@ export const getCategoriasByUser = (id_usu: number) => {
   } catch (error) {
     console.error('Error getting categorias:', error);
     return [];
+  }
+};
+
+export const updateCategoria = (id_categoria: number, updates: {
+  nombre?: string;
+  icono?: string;
+  color?: string;
+}) => {
+  try {
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (updates.nombre !== undefined) { fields.push('nombre = ?'); values.push(updates.nombre); }
+    if (updates.icono !== undefined) { fields.push('icono = ?'); values.push(updates.icono); }
+    if (updates.color !== undefined) { fields.push('color = ?'); values.push(updates.color); }
+
+    if (fields.length === 0) return;
+
+    values.push(id_categoria);
+    db.runSync(`UPDATE categoria SET ${fields.join(', ')} WHERE id_categoria = ?`, values);
+  } catch (error) {
+    console.error('Error updating categoria:', error);
+    throw error;
   }
 };
 

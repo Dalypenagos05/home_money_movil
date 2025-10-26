@@ -14,7 +14,8 @@ import {
   View,
 } from "react-native";
 import CustomText from "../../components/CustomText";
-import { getUserByEmail } from "../../database/db";
+import { getUserByEmail } from '../../database/db';
+import { useAuth } from '../lib/authContext';
 
 const { width } = Dimensions.get("window");
 
@@ -92,6 +93,7 @@ const FloatingInput: React.FC<FloatingInputProps> = ({
 };
 
 export default function LoginScreen() {
+  const { setUser } = useAuth();
   const router = useRouter();
 
   const [correo, setCorreo] = useState("");
@@ -115,21 +117,27 @@ export default function LoginScreen() {
     setIsLoading(true);
 
     try {
-      // Buscar usuario en la base de datos
       const user = getUserByEmail(correo.toLowerCase().trim()) as any;
-
       if (!user) {
         Alert.alert("Error", "Usuario no encontrado");
         setIsLoading(false);
         return;
       }
-
-      // Verificar contraseña
       if (user.clave !== contraseña) {
         Alert.alert("Error", "Contraseña incorrecta");
         setIsLoading(false);
         return;
       }
+
+      // save to context (and storage via provider)
+      setUser({
+        id_usu: user.id_usu,
+        nombre: user.nombre,
+        apellido: user.apellido,
+        correo: user.correo,
+        telefono: user.telefono,
+        foto_uri: user.foto_uri ?? null, // ensure it persists across sessions
+      });
 
       // Login exitoso — redirigir inmediatamente a homeScreen
       router.replace('./homeScreen');
